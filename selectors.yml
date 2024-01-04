@@ -4,5 +4,7 @@ selectors:
     definition:
       union:
         - method: fqn
+            value: "incremental_coordinator"
+        - method: fqn
           value: "fact_transaction__tx_hash"
        

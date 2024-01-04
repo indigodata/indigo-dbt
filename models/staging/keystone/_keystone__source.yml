@@ -16,3 +16,10 @@ sources:
   - name: contract_deployment
   - name: block_header
   - name: uniswap_v3_pair_swap
+
+- name: keystone_offchain
+
+  tables:
+  - name: network_feed
+  - name: ethernodes_tracker
+  - name: node_tracker

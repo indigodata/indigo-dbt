@@ -1,0 +1,10 @@
+version: 2
+sources:
+- name: keystone_ethereum
+
+  freshness:    
+    error_after: {count: 60, period: minute}
+  loaded_at_field: blk_timestamp
+
+  tables: 
+  - name: eth_transaction

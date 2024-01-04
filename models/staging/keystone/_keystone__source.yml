@@ -7,7 +7,6 @@ sources:
   loaded_at_field: blk_timestamp
 
   tables: 
-  - name: eth_transaction
   - name: erc20_transfer
   - name: erc721_transfer
   - name: erc1155_transfer

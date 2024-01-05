@@ -15,7 +15,7 @@ WITH peer_set_unioned AS (
     , NULL            AS msg_timestamp_remove
     , NULL            AS session_duration
   FROM {{ source('keystone_offchain', 'network_feed') }}
-  -- TODO: Remove for prod
+  -- TODO: turn into dynamic filter
   WHERE msg_timestamp >= '2023-12-26'
     AND msg_type = 'peer_set_add'
 
@@ -29,7 +29,7 @@ WITH peer_set_unioned AS (
     , msg_timestamp   AS msg_timestamp_remove
     , msg_data[2]     AS session_duration 
   FROM {{ source('keystone_offchain', 'network_feed') }}
-  -- TODO: Remove for prod
+  -- TODO: turn into dynamic filter
   WHERE msg_timestamp >= '2023-12-26'
     AND msg_type = 'peer_set_remove'
 
@@ -43,7 +43,7 @@ WITH peer_set_unioned AS (
     , msg_timestamp   AS msg_timestamp_remove
     , NULL            AS session_duration
   FROM {{ source('keystone_offchain', 'network_feed') }}
-  -- TODO: Remove for prod
+  -- TODO: turn into dynamic filter
   WHERE msg_timestamp >= '2023-12-26'
     AND msg_type = 'indigo_node_start'    
 )
@@ -90,7 +90,7 @@ WITH peer_set_unioned AS (
     , peer_id
     , msg_data        AS peer_meta_data
   FROM {{ source('keystone_offchain', 'network_feed') }}
-  -- TODO: Remove for prod
+  -- TODO: turn into dynamic filter
     WHERE msg_timestamp >= '2023-12-26'
         AND msg_type = 'node_tracker'
 )

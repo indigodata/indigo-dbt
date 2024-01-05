@@ -23,7 +23,7 @@ WITH ethernodes AS (
         , 'ethernodes'      AS source
     FROM {{ ref('int_ethernodes_tracker') }}
 )
-, node_tracker AS (
+, etherscan_tracker AS (
     SELECT
           node_id
         , node_public_key
@@ -38,8 +38,8 @@ WITH ethernodes AS (
         , run_time_version
         , os
         , NULL AS in_sync
-        , 'node_tracker' AS source
-    FROM {{ ref('int_node_tracker') }}
+        , 'etherscan_tracker' AS source
+    FROM {{ ref('int_etherscan_tracker') }}
 )
 
 SELECT *
@@ -48,4 +48,4 @@ FROM ethernodes
 UNION ALL 
 
 SELECT *
-FROM node_tracker
+FROM etherscan_tracker

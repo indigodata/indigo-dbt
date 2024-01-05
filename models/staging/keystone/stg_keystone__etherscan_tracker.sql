@@ -1,6 +1,6 @@
 {{ config(materialized='ephemeral') }}
 
-WITH node_tracker_base AS (
+WITH etherscan_tracker_base AS (
     SELECT 
           *
     FROM {{ source('keystone_offchain', 'node_tracker') }}
@@ -16,4 +16,4 @@ SELECT
     , os
     , last_seen
     , '{{run_started_at}}'::timestamp_ntz   AS run_timestamp
-FROM node_tracker_base
+FROM etherscan_tracker_base

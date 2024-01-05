@@ -5,7 +5,7 @@ WITH seen_at AS (
           node_public_key
         , MIN(last_seen) AS first_seen
         , MAX(last_seen) AS last_seen
-    FROM {{ ref('stg_keystone__node_tracker') }}
+    FROM {{ ref('stg_keystone__etherscan_tracker') }}
     GROUP BY 1
 )
 , last_seen_dimentions AS (
@@ -17,7 +17,7 @@ WITH seen_at AS (
         , client_type
         , run_time_version
         , os
-    FROM {{ ref('stg_keystone__node_tracker') }}
+    FROM {{ ref('stg_keystone__etherscan_tracker') }}
     QUALIFY ROW_NUMBER() OVER(PARTITION BY node_public_key ORDER BY last_seen DESC) = 1
 )
 SELECT

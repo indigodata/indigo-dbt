@@ -31,14 +31,14 @@ WITH ethernodes AS (
         , last_seen
         , ip
         , port
-        , NULL AS isp
+        , NULL                  AS isp
         , country
         , client_type
-        , NULL AS client_version
+        , NULL                  AS client_version
         , run_time_version
         , os
-        , NULL AS in_sync
-        , 'etherscan_tracker' AS source
+        , NULL                  AS in_sync
+        , 'etherscan'           AS source
     FROM {{ ref('int_etherscan_tracker') }}
 )
 

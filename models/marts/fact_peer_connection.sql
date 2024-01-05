@@ -112,19 +112,32 @@ SELECT
   -- bug with split_part
   , REPLACE(SPLIT(peer_meta_data[4], ':')[0], '"', '')          AS peer_ip
   , SPLIT(peer_meta_data[4], ':')[1]::INT                       AS peer_port
-  , etherscan_tracker.first_seen                                AS etherscan_tracker_first_seen
-  , etherscan_tracker.last_seen                                 AS etherscan_tracker_last_seen
-  , etherscan_tracker.ip                                        AS etherscan_tracker_ip
-  , etherscan_tracker.port                                      AS etherscan_tracker_port
-  , etherscan_tracker.country                                   AS etherscan_tracker_country
-  , etherscan_tracker.client_type                               AS etherscan_tracker_client_type
-  , etherscan_tracker.run_time_version                          AS etherscan_tracker_run_time_version
-  , etherscan_tracker.os                                        AS etherscan_tracker_os
+  , etherscan.first_seen                                        AS etherscan_first_seen
+  , etherscan.last_seen                                         AS etherscan_last_seen
+  , etherscan.ip                                                AS etherscan_ip
+  , etherscan.port                                              AS etherscan_port
+  , etherscan.country                                           AS etherscan_country
+  , etherscan.client_type                                       AS etherscan_client_type
+  , etherscan.run_time_version                                  AS etherscan_run_time_version
+  , etherscan.os                                                AS etherscan_os
+  , ethernodes.first_seen                                       AS ethernodes_first_seen
+  , ethernodes.last_seen                                        AS ethernodes_last_seen
+  , ethernodes.ip                                               AS ethernodes_ip
+  , ethernodes.isp                                              AS ethernodes_isp
+  , ethernodes.country                                          AS ethernodes_country
+  , ethernodes.client_type                                      AS ethernodes_client_type
+  , ethernodes.client_version                                   AS ethernodes_client_version
+  , ethernodes.os                                               AS ethernodes_os
+  , ethernodes.in_sync                                          AS ethernodes_in_sync
+
 FROM sessions_enriched s
   LEFT JOIN node_tracker_feed nt
     ON s.node_id = nt.node_id
       AND s.peer_id = nt.peer_id
       AND DATEDIFF(MINUTES, s.start_time, nt.msg_timestamp) BETWEEN 0 AND 1
-  LEFT JOIN {{ ref('dim_peers') }} etherscan_tracker
-    ON s.peer_id = etherscan_tracker.node_id
-      AND etherscan_tracker.source = 'etherscan_tracker'
+  LEFT JOIN {{ ref('dim_peers') }} etherscan
+    ON s.peer_id = etherscan.node_id
+      AND etherscan.source = 'etherscan'
+LEFT JOIN {{ ref('dim_peers') }} ethernodes
+    ON s.peer_id = ethernodes.node_id
+      AND ethernodes.source = 'ethernodes'

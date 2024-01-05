@@ -104,16 +104,27 @@ SELECT
   , s.peer_id
   , REPLACE(peer_meta_data[0], '"', '')                 AS peer_public_key
   , peer_meta_data[1]::INT                              AS peer_rlp_protocol_version
-  , NULLIF(SPLIT_PART(peer_meta_data[2], '/', 0), '')   AS client_type
-  , NULLIF(SPLIT_PART(peer_meta_data[2], '/', 1), '')   AS client_version
-  , NULLIF(SPLIT_PART(peer_meta_data[2], '/', 2), '')   AS os
-  , NULLIF(SPLIT_PART(peer_meta_data[2], '/', 3), '')   AS run_time_version
+  , NULLIF(SPLIT_PART(peer_meta_data[2], '/', 0), '')   AS peer_client_type
+  , NULLIF(SPLIT_PART(peer_meta_data[2], '/', 1), '')   AS peer_client_version
+  , NULLIF(SPLIT_PART(peer_meta_data[2], '/', 2), '')   AS peer_os
+  , NULLIF(SPLIT_PART(peer_meta_data[2], '/', 3), '')   AS peer_run_time_version
   , REPLACE(peer_meta_data[3], '"', '')                 AS peer_capabilities
   -- bug with split_part
   , REPLACE(SPLIT(peer_meta_data[4], ':')[0], '"', '')  AS peer_ip
   , SPLIT(peer_meta_data[4], ':')[1]::INT               AS peer_port
+  , node_tracker.first_seen                             AS node_tracker_first_seen
+  , node_tracker.last_seen                              AS node_tracker_last_seen
+  , node_tracker.ip                                     AS node_tracker_ip
+  , node_tracker.port                                   AS node_tracker_port
+  , node_tracker.country                                AS node_tracker_country
+  , node_tracker.client_type                            AS node_tracker_client_type
+  , node_tracker.run_time_version                       AS node_tracker_run_time_version
+  , node_tracker.os                                     AS node_tracker_os
 FROM sessions_enriched s
   LEFT JOIN node_tracker nt
     ON s.node_id = nt.node_id
       AND s.peer_id = nt.peer_id
       AND DATEDIFF(MINUTES, s.start_time, nt.msg_timestamp) BETWEEN 0 AND 1
+  LEFT JOIN {{ ref('dim_peers') }} node_tracker
+    ON s.peer_id = node_tracker.node_id
+      AND node_tracker.source = 'node_tracker'

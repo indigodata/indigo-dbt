@@ -7,13 +7,13 @@ WITH node_tracker_base AS (
 )
 
 SELECT
-      node_id
-    , host AS ip
+      node_id                               AS node_public_key
+    , host                                  AS ip
     , port
     , country
-    , client as client_type
-    , type as run_time_version
+    , client                                AS client_type
+    , type                                  AS run_time_version
     , os
     , last_seen
-    , '{{run_started_at}}'::timestamp_ntz  AS run_timestamp
+    , '{{run_started_at}}'::timestamp_ntz   AS run_timestamp
 FROM node_tracker_base

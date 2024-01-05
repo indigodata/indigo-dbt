@@ -8,6 +8,7 @@
 WITH ethernodes AS (
     SELECT
           node_id
+        , node_public_key
         , first_seen
         , last_seen
         , ip
@@ -25,6 +26,7 @@ WITH ethernodes AS (
 , node_tracker AS (
     SELECT
           node_id
+        , node_public_key
         , first_seen
         , last_seen
         , ip

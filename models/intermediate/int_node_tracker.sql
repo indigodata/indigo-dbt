@@ -2,7 +2,7 @@
 
 WITH seen_at AS (
     SELECT
-          node_id
+          node_public_key
         , MIN(last_seen) AS first_seen
         , MAX(last_seen) AS last_seen
     FROM {{ ref('stg_keystone__node_tracker') }}
@@ -10,7 +10,7 @@ WITH seen_at AS (
 )
 , last_seen_dimentions AS (
     SELECT
-          node_id
+          node_public_key
         , ip
         , port
         , country
@@ -18,10 +18,11 @@ WITH seen_at AS (
         , run_time_version
         , os
     FROM {{ ref('stg_keystone__node_tracker') }}
-    QUALIFY ROW_NUMBER() OVER(PARTITION BY node_id ORDER BY last_seen DESC) = 1
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY node_public_key ORDER BY last_seen DESC) = 1
 )
 SELECT
-      sa.node_id
+      KECCAK256(sa.node_public_key) AS node_id
+    , sa.node_public_key
     , sa.first_seen
     , sa.last_seen
     , ip
@@ -32,4 +33,4 @@ SELECT
     , os
 FROM seen_at sa
     LEFT JOIN last_seen_dimentions lsd
-        ON sa.NODE_ID = lsd.NODE_ID
+        ON sa.node_public_key = lsd.node_public_key

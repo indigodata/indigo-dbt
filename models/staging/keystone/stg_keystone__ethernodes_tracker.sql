@@ -6,8 +6,8 @@ WITH ethernodes_base AS (
 )
 
 SELECT
-      node_id
-    , host_address as ip
+      node_id                               AS node_public_key
+    , host_address                          AS ip
     , isp
     , country
     , client_type
@@ -15,5 +15,5 @@ SELECT
     , os
     , in_sync
     , last_seen
-    , '{{run_started_at}}'::timestamp_ntz  AS run_timestamp
+    , '{{run_started_at}}'::timestamp_ntz   AS run_timestamp
 FROM ethernodes_base

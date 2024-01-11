@@ -108,6 +108,9 @@ SELECT
   -- bug with split_part
   , REPLACE(SPLIT(peer_meta_data[4], ':')[0], '"', '')          AS peer_ip
   , SPLIT(peer_meta_data[4], ':')[1]::INT                       AS peer_port
+  , geoip2_country(peer_ip)                                     AS peer_country
+  , geoip2_city(peer_ip)                                        AS peer_city
+  , geoip2_subdivision(peer_ip)                                 AS peer_subdivision
   , etherscan.first_seen                                        AS etherscan_first_seen
   , etherscan.last_seen                                         AS etherscan_last_seen
   , etherscan.ip                                                AS etherscan_ip

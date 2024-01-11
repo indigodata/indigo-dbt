@@ -100,10 +100,10 @@ SELECT
   , s.peer_id
   , REPLACE(peer_meta_data[0], '"', '')                         AS peer_public_key
   , peer_meta_data[1]::INT                                      AS peer_rlp_protocol_version
-  , NULLIF(SPLIT_PART(peer_meta_data[2], '/', 0), '')           AS peer_client_type
-  , NULLIF(SPLIT_PART(peer_meta_data[2], '/', 1), '')           AS peer_client_version
-  , NULLIF(SPLIT_PART(peer_meta_data[2], '/', 2), '')           AS peer_os
-  , NULLIF(SPLIT_PART(peer_meta_data[2], '/', 3), '')           AS peer_run_time_version
+  , NULLIF(SPLIT_PART(peer_meta_data[2], '/', 1), '')           AS peer_client_type
+  , NULLIF(SPLIT_PART(peer_meta_data[2], '/', 2), '')           AS peer_client_version
+  , NULLIF(SPLIT_PART(peer_meta_data[2], '/', 3), '')           AS peer_os
+  , NULLIF(SPLIT_PART(peer_meta_data[2], '/', 4), '')           AS peer_run_time_version
   , REPLACE(peer_meta_data[3], '"', '')                         AS peer_capabilities
   -- bug with split_part
   , REPLACE(SPLIT(peer_meta_data[4], ':')[0], '"', '')          AS peer_ip

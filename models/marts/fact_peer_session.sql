@@ -6,7 +6,11 @@
 }}
 
 
-WITH peer_set_unioned AS (
+WITH country AS (
+  SELECT *
+  FROM {{ ref('seed_country_code') }}
+)
+, peer_set_unioned AS (
   SELECT
       msg_timestamp
     , node_id
@@ -85,7 +89,18 @@ WITH peer_set_unioned AS (
       node_id
     , msg_timestamp
     , peer_id
-    , msg_data        AS peer_meta_data
+    , REPLACE(msg_data[0], '"', '')                         AS peer_public_key
+    , msg_data[1]::INT                                      AS peer_rlp_protocol_version
+    , NULLIF(SPLIT_PART(msg_data[2], '/', 1), '')           AS peer_client_type
+    , NULLIF(SPLIT_PART(msg_data[2], '/', 2), '')           AS peer_client_version
+    , NULLIF(SPLIT_PART(msg_data[2], '/', 3), '')           AS peer_os
+    , NULLIF(SPLIT_PART(msg_data[2], '/', 4), '')           AS peer_run_time_version
+    , REPLACE(msg_data[3], '"', '')                         AS peer_capabilities
+    , REPLACE(SPLIT_PART(msg_data[4], ':', 1), '"', '')     AS peer_ip
+    , SPLIT_PART(msg_data[4], ':', 2)::INT                  AS peer_port
+    , GEOIP2_COUNTRY(peer_ip)                               AS peer_country
+    , GEOIP2_CITY(peer_ip)                                  AS peer_city
+    , GEOIP2_SUBDIVISION(peer_ip)                           AS peer_subdivision
   FROM {{ source('keystone_offchain', 'network_feed') }}
     WHERE msg_timestamp >= SYSDATE() - INTERVAL '1 WEEK'
         AND msg_type = 'node_tracker'
@@ -98,19 +113,18 @@ SELECT
   , s.end_time_imputed
   , s.node_id
   , s.peer_id
-  , REPLACE(peer_meta_data[0], '"', '')                         AS peer_public_key
-  , peer_meta_data[1]::INT                                      AS peer_rlp_protocol_version
-  , NULLIF(SPLIT_PART(peer_meta_data[2], '/', 1), '')           AS peer_client_type
-  , NULLIF(SPLIT_PART(peer_meta_data[2], '/', 2), '')           AS peer_client_version
-  , NULLIF(SPLIT_PART(peer_meta_data[2], '/', 3), '')           AS peer_os
-  , NULLIF(SPLIT_PART(peer_meta_data[2], '/', 4), '')           AS peer_run_time_version
-  , REPLACE(peer_meta_data[3], '"', '')                         AS peer_capabilities
-  -- bug with split_part
-  , REPLACE(SPLIT(peer_meta_data[4], ':')[0], '"', '')          AS peer_ip
-  , SPLIT(peer_meta_data[4], ':')[1]::INT                       AS peer_port
-  , geoip2_country(peer_ip)                                     AS peer_country
-  , geoip2_city(peer_ip)                                        AS peer_city
-  , geoip2_subdivision(peer_ip)                                 AS peer_subdivision
+  , nt.peer_public_key
+  , nt.peer_rlp_protocol_version
+  , nt.peer_client_type
+  , nt.peer_client_version
+  , nt.peer_os
+  , nt.peer_run_time_version
+  , nt.peer_capabilities
+  , nt.peer_ip
+  , nt.peer_port
+  , country.country_name                                        AS peer_country
+  , nt.peer_city
+  , nt.peer_subdivision
   , etherscan.first_seen                                        AS etherscan_first_seen
   , etherscan.last_seen                                         AS etherscan_last_seen
   , etherscan.ip                                                AS etherscan_ip
@@ -134,6 +148,8 @@ FROM sessions_enriched s
     ON s.node_id = nt.node_id
       AND s.peer_id = nt.peer_id
       AND DATEDIFF(MINUTES, s.start_time, nt.msg_timestamp) BETWEEN 0 AND 1
+  LEFT JOIN country
+    ON nt.peer_country = country.country_code
   LEFT JOIN {{ ref('dim_peers') }} etherscan
     ON s.peer_id = etherscan.node_id
       AND etherscan.source = 'etherscan'

@@ -15,7 +15,7 @@ SELECT
       blk_number
     , blk_timestamp
     , blockchain
-    , tx_hash
+    , CAST(SUBSTR(tx_hash, 3) AS BINARY(32)) AS tx_hash
     , tx_index
     , tx_status
     , tx_from

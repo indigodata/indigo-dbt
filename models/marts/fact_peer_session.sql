@@ -89,18 +89,18 @@ WITH country AS (
       node_id
     , msg_timestamp
     , peer_id
-    , REPLACE(msg_data[0], '"', '')                         AS peer_public_key
-    , msg_data[1]::INT                                      AS peer_rlp_protocol_version
-    , NULLIF(SPLIT_PART(msg_data[2], '/', 1), '')           AS peer_client_type
-    , NULLIF(SPLIT_PART(msg_data[2], '/', 2), '')           AS peer_client_version
-    , NULLIF(SPLIT_PART(msg_data[2], '/', 3), '')           AS peer_os
-    , NULLIF(SPLIT_PART(msg_data[2], '/', 4), '')           AS peer_run_time_version
-    , REPLACE(msg_data[3], '"', '')                         AS peer_capabilities
-    , REPLACE(SPLIT_PART(msg_data[4], ':', 1), '"', '')     AS peer_ip
-    , SPLIT_PART(msg_data[4], ':', 2)::INT                  AS peer_port
-    , GEOIP2_COUNTRY(peer_ip)                               AS peer_country
-    , GEOIP2_CITY(peer_ip)                                  AS peer_city
-    , GEOIP2_SUBDIVISION(peer_ip)                           AS peer_subdivision
+    , REPLACE(msg_data[0], '"', '')                                                     AS peer_public_key
+    , msg_data[1]::INT                                                                  AS peer_rlp_protocol_version
+    , NULLIF(SPLIT_PART(msg_data[2], '/', 1), '')                                       AS peer_client_type
+    , NULLIF(REGEXP_SUBSTR(MSG_DATA[2], 'v[^/]+', 1, 1, 'e'), '')                       AS peer_client_version
+    , NULLIF(REGEXP_SUBSTR(MSG_DATA[2], '/([^/]+)/[^/]+$', 1, 1, 'e'), '')              AS peer_os
+    , NULLIF(REGEXP_SUBSTR(MSG_DATA[2], '([^/]+)$', 1, 1, 'e'), '')                     AS peer_run_time_version
+    , REPLACE(msg_data[3], '"', '')                                                     AS peer_capabilities
+    , REPLACE(SPLIT_PART(msg_data[4], ':', 1), '"', '')                                 AS peer_ip
+    , SPLIT_PART(msg_data[4], ':', 2)::INT                                              AS peer_port
+    , GEOIP2_COUNTRY(peer_ip)                                                           AS peer_country
+    , GEOIP2_CITY(peer_ip)                                                              AS peer_city
+    , GEOIP2_SUBDIVISION(peer_ip)                                                       AS peer_subdivision
   FROM {{ source('keystone_offchain', 'network_feed') }}
     WHERE msg_timestamp >= SYSDATE() - INTERVAL '1 WEEK'
         AND msg_type = 'node_tracker'

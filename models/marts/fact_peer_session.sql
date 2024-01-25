@@ -69,6 +69,16 @@ WITH country AS (
       END                                                   AS session_duration
   FROM peer_set_unioned
 )
+, new_hash_msgs AS (
+  SELECT
+      msg_timestamp
+    , node_id
+    , peer_id
+    , ARRAY_SIZE(msg_data) AS msg_ct
+  FROM {{ source('keystone_offchain', 'network_feed') }}
+  WHERE msg_timestamp >= SYSDATE() - INTERVAL '1 WEEK'
+    AND msg_type IN ('new_hash_66', 'new_hash_68')
+)
 , sessions_enriched AS (
   SELECT
         msg_timestamp                                   AS start_time
@@ -78,11 +88,31 @@ WITH country AS (
         )                                               AS end_time
       , session_duration::NUMBER                        AS session_duration                            
       , DATEDIFF(NANOSECOND, start_time, end_time)      AS session_duration_calculated
+      , session_duration_calculated / 1e9 / 3600.0      AS session_duration_hour
       , sessions.end_timestamp IS NULL                  AS end_time_imputed
       , node_id
       , peer_id
   FROM sessions
   WHERE msg_type = 'peer_set_add'
+)
+, sessions_msg_ct AS (
+  SELECT
+      s.start_time
+    , s.end_time
+    , s.session_duration
+    , s.session_duration_calculated
+    , s.session_duration_hour
+    , s.end_time_imputed
+    , s.node_id
+    , s.peer_id
+    , COUNT(nhm.node_id)              AS msg_ct
+    , SUM(nhm.msg_ct)                 AS msg_hash_ct
+  FROM sessions_enriched s
+    LEFT JOIN new_hash_msgs nhm
+      ON s.node_id = nhm.node_id
+      AND s.peer_id = nhm.peer_id
+      AND nhm.msg_timestamp BETWEEN s.start_time AND s.end_time
+  GROUP BY 1,2,3,4,5,6,7,8
 )
 , node_tracker_feed AS (
   SELECT
@@ -110,9 +140,14 @@ SELECT
   , s.end_time
   , s.session_duration
   , s.session_duration_calculated
+  , s.session_duration_hour
   , s.end_time_imputed
   , s.node_id
   , s.peer_id
+  , s.msg_ct
+  , s.msg_ct / (session_duration / 1e9 / 60)                      AS msg_per_minute
+  , s.msg_hash_ct
+  , s.msg_hash_ct / (session_duration / 1e9 / 60)                 AS msg_hash_per_minute
   , nt.peer_public_key
   , nt.peer_rlp_protocol_version
   , nt.peer_client_type
@@ -142,8 +177,7 @@ SELECT
   , ethernodes.client_version                                   AS ethernodes_client_version
   , ethernodes.os                                               AS ethernodes_os
   , ethernodes.in_sync                                          AS ethernodes_in_sync
-
-FROM sessions_enriched s
+FROM sessions_msg_ct s
   LEFT JOIN node_tracker_feed nt
     ON s.node_id = nt.node_id
       AND s.peer_id = nt.peer_id

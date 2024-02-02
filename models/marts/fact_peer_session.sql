@@ -74,7 +74,7 @@ WITH country AS (
       msg_timestamp
     , node_id
     , peer_id
-    , ARRAY_SIZE(msg_data) AS msg_ct
+    , ARRAY_SIZE(msg_data) AS hash_ct
   FROM {{ source('keystone_offchain', 'network_feed') }}
   WHERE msg_timestamp >= SYSDATE() - INTERVAL '1 WEEK'
     AND msg_type IN ('new_hash_66', 'new_hash_68')
@@ -106,7 +106,7 @@ WITH country AS (
     , s.node_id
     , s.peer_id
     , COUNT(nhm.node_id)              AS msg_ct
-    , SUM(nhm.msg_ct)                 AS msg_hash_ct
+    , SUM(nhm.hash_ct)                AS msg_hash_ct
   FROM sessions_enriched s
     LEFT JOIN new_hash_msgs nhm
       ON s.node_id = nhm.node_id
@@ -145,9 +145,9 @@ SELECT
   , s.node_id
   , s.peer_id
   , s.msg_ct
-  , s.msg_ct / (session_duration / 1e9 / 60)                      AS msg_per_minute
+  , DIV0(s.msg_ct, (session_duration_calculated / 1e9 / 60))        AS msg_per_minute
   , s.msg_hash_ct
-  , s.msg_hash_ct / (session_duration / 1e9 / 60)                 AS msg_hash_per_minute
+  , DIV0(s.msg_hash_ct, (session_duration_calculated / 1e9 / 60))   AS msg_hash_per_minute
   , nt.peer_public_key
   , nt.peer_rlp_protocol_version
   , nt.peer_client_type

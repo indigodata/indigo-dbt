@@ -34,19 +34,28 @@ CREATE OR REPLACE FUNCTION remove_indices(ARRAY_TO_PRUNE ARRAY, DUPLICATE_INDICE
 
 
 {% macro func_get_array_position() -%}
-  CREATE OR REPLACE FUNCTION get_array_position(STRING_TO_LOOKUP BINARY, ARRAY_FOR_LOOKUP ARRAY)
+  CREATE OR REPLACE FUNCTION get_array_position(BINARY_TO_LOOKUP BINARY(32), ARRAY_FOR_LOOKUP ARRAY)
     RETURNS DOUBLE
     LANGUAGE JAVASCRIPT
     AS $$
-      return ARRAY_FOR_LOOKUP.indexOf(STRING_TO_LOOKUP);
+      var binaryStringToLookup = BINARY_TO_LOOKUP.toString('hex');
+      for (var i = 0; i < ARRAY_FOR_LOOKUP.length; i++) {
+        if (ARRAY_FOR_LOOKUP[i].toString('hex') === binaryStringToLookup) {
+          return i;
+        }
+      }
+      return null;
     $$;
 {%- endmacro %}
 
 {% macro func_get_item_at_index() -%}
 CREATE OR REPLACE FUNCTION get_item_at_index(ARRAY_INPUT ARRAY, INDEX DOUBLE)
-  RETURNS STRING
+  RETURNS TIMESTAMP
   LANGUAGE JAVASCRIPT
   AS $$
+    if (INDEX === null){
+      return null;
+    }
     return ARRAY_INPUT[INDEX];
   $$;
 {%- endmacro %}

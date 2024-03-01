@@ -4,7 +4,13 @@
       , cluster_by=['first_peer']
       , pre_hook=[
             '{{ func_find_duplicate_indices() }}', 
-            '{{ func_remove_indices() }}'
+            '{{ func_remove_indices() }}',
+            "{% if is_incremental() %}
+             SET START_TIMESTAMP = (SELECT MAX(confirmed_at) FROM {{ this }});
+             {% else %}
+             SET START_TIMESTAMP = '2024-02-01 00:00:00'::timestamp;
+             {% endif %}
+             SET END_TIMESTAMP = DATEADD(day, 1, $START_TIMESTAMP);"
         ]
     )
 }}
@@ -13,20 +19,21 @@ WITH peer_messages AS (
     SELECT 
         *
       , CAST(peer_id AS BINARY(32)) AS peer_id_bin
-      , ARRAY_SIZE(msg_data)    AS msg_hash_count
+      , ARRAY_SIZE(msg_data)        AS msg_hash_count
     FROM {{ source('keystone_offchain', 'network_feed') }}
-    -- START DATE
-    WHERE msg_timestamp > '2024-01-22 00:00:00'
-    {% if is_incremental() %}
-        -- 10 minutes before last run
-        AND msg_timestamp > (SELECT MAX(first_seen_at)::timestamp - INTERVAL '10 minutes' FROM {{ this }})
-        -- Max data in a single run (1 day)
-        AND msg_timestamp < (SELECT MAX(first_seen_at)::timestamp + INTERVAL '1 day' FROM {{ this }})
-    {% else %}
-        -- LIMIT FULL REFRESH TO 1 DAY
-        AND msg_timestamp < '2024-01-23 00:00:00'
-    {% endif %}
-        AND msg_type IN ('new_hash_66', 'new_hash_68', 'get_tx_66')
+    -- Messages from 10 minutes before first confirmed tx in this run
+    WHERE msg_timestamp > $START_TIMESTAMP - INTERVAL '10 minutes'
+        AND msg_timestamp <= $END_TIMESTAMP
+        AND msg_type IN ('new_hash_66', 'new_hash_68', 'new_hash')
+)
+, confirmed_txs AS (
+    SELECT
+        blk_timestamp
+      , tx_hash
+      , tx_from
+    FROM {{ ref('fact_transaction__blk_timestamp') }}
+    WHERE blk_timestamp > $START_TIMESTAMP
+        AND blk_timestamp <= $END_TIMESTAMP
 )
 , peer_hash_msg AS (
     SELECT
@@ -40,35 +47,20 @@ WITH peer_messages AS (
     FROM peer_messages msg,
         LATERAL FLATTEN(input => msg_data) hashes
 )
-, confirmed_txs AS (
-    SELECT
-        phm.*
-    FROM peer_hash_msg phm
-     INNER JOIN {{ ref('fact_transaction__tx_hash') }} ft
-        ON phm.tx_hash=ft.tx_hash
-    WHERE phm.msg_timestamp < ft.blk_timestamp
-        -- Cut messages that come in more than 10 mins before the tx is confirmed. 
-        -- This gets rid of duplicates on the edge of incremental runs 
-        -- at the cost of missing hash wins for transactions that take more than 10 mins to confirm.
-        AND phm.msg_timestamp > ft.blk_timestamp - INTERVAL '10 minutes'
-        -- Only include transactions that were confirmed before the latest message
-        AND ft.blk_timestamp <= (SELECT MAX(msg_timestamp) - INTERVAL '10 minutes' FROM peer_messages)
-    {% if is_incremental() %}
-        -- Only include transactions confirmed after the newest tx in the table
-        AND ft.blk_timestamp > (SELECT MAX(confirmed_at)::timestamp FROM {{ this }})
-    {% endif %}
-)
 , new_hash_messages AS (
     SELECT
-        tx_hash
+        peer_hash_msg.tx_hash
       , ARRAY_AGG(msg_timestamp)
              WITHIN GROUP (ORDER BY msg_timestamp)          AS hash_msg_timestamps
       , ARRAY_AGG(node_id)
             WITHIN GROUP (ORDER BY msg_timestamp)           AS hash_msg_node_order
       , ARRAY_AGG(peer_id) 
             WITHIN GROUP (ORDER BY msg_timestamp)           AS hash_msg_peer_order
-    FROM confirmed_txs
-    WHERE msg_type IN ('new_hash_66', 'new_hash_68')
+    FROM peer_hash_msg
+        INNER JOIN confirmed_txs ct
+            ON peer_hash_msg.tx_hash=ct.tx_hash
+    -- Only include messages that were seen before the transaction was confirmed
+    WHERE msg_timestamp BETWEEN blk_timestamp - INTERVAL '10 minutes' AND blk_timestamp 
     GROUP BY 1
 )
 , hash_messages_enriched AS (
@@ -89,7 +81,7 @@ WITH peer_messages AS (
 SELECT
       hsg.tx_hash
     , pm.peer_id                                                   AS first_peer
-    , ft.blk_timestamp                                             AS confirmed_at
+    , ct.blk_timestamp                                             AS confirmed_at
     , hsg.first_seen_at::timestamp                                 AS first_seen_at
     , hsg.second_seen_at::timestamp                                AS second_seen_at
     , hsg.first_node
@@ -103,10 +95,10 @@ SELECT
     , hsg.msg_timestamps
     , hsg.msg_node_order
     , hsg.msg_peer_order
-    , ft.tx_from
+    , ct.tx_from
 FROM hash_messages_enriched hsg
     INNER JOIN peer_messages pm
         ON pm.msg_timestamp=hsg.first_seen_at
         AND pm.peer_id_bin=hsg.first_peer
-    LEFT JOIN {{ ref('fact_transaction__tx_hash')}} ft
-        ON hsg.tx_hash=ft.tx_hash
+    LEFT JOIN confirmed_txs ct
+        ON hsg.tx_hash=ct.tx_hash

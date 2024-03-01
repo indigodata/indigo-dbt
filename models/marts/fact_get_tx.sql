@@ -2,6 +2,14 @@
     config(
         materialized='incremental'
       , cluster_by=['peer_id', 'tx_from']
+      , pre_hook=[
+            "{% if is_incremental() %}
+             SET START_TIMESTAMP = (SELECT MAX(msg_timestamp) FROM {{ this }});
+             {% else %}
+             SET START_TIMESTAMP = '2024-02-01 00:00:00'::timestamp;
+             {% endif %}
+             SET END_TIMESTAMP = '2024-02-29 00:00:00'::timestamp;"
+        ]
     )
 }}
 
@@ -10,12 +18,9 @@ WITH peer_messages AS (
         *
     FROM {{ source('keystone_offchain', 'network_feed') }}
     -- START DATE
-    WHERE msg_timestamp > '2024-01-22 00:00:00'
-        AND msg_timestamp < '2024-01-23 00:00:00'
-        AND msg_type = 'get_tx_66'
-    {% if is_incremental() %}
-        AND msg_timestamp > (SELECT MAX(msg_timestamp) FROM {{ this }})
-    {% endif %}
+    WHERE msg_timestamp > $START_TIMESTAMP 
+        AND msg_timestamp < $END_TIMESTAMP
+        AND msg_type IN ('get_tx_66', 'get_tx_68', 'get_tx')
 )
 , peer_hash_msg AS (
     SELECT

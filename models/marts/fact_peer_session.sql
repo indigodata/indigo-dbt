@@ -19,7 +19,7 @@ WITH country AS (
     , NULL            AS msg_timestamp_remove
     , NULL            AS session_duration
   FROM {{ source('keystone_offchain', 'network_feed') }}
-  WHERE msg_timestamp >= SYSDATE() - INTERVAL '1 WEEK'
+  WHERE msg_timestamp BETWEEN '2024-02-01' AND '2024-02-29'
     AND msg_type = 'peer_set_add'
 
   UNION ALL
@@ -32,7 +32,7 @@ WITH country AS (
     , msg_timestamp   AS msg_timestamp_remove
     , msg_data[2]     AS session_duration 
   FROM {{ source('keystone_offchain', 'network_feed') }}
-  WHERE msg_timestamp >= SYSDATE() - INTERVAL '1 WEEK'
+  WHERE msg_timestamp BETWEEN '2024-02-01' AND '2024-02-29'
     AND msg_type = 'peer_set_remove'
 
   UNION ALL
@@ -45,7 +45,7 @@ WITH country AS (
     , msg_timestamp   AS msg_timestamp_remove
     , NULL            AS session_duration
   FROM {{ source('keystone_offchain', 'network_feed') }}
-  WHERE msg_timestamp >= SYSDATE() - INTERVAL '1 WEEK'
+  WHERE msg_timestamp BETWEEN '2024-02-01' AND '2024-02-29'
     AND msg_type = 'indigo_node_start'    
 )
 , sessions AS (
@@ -76,8 +76,8 @@ WITH country AS (
     , peer_id
     , ARRAY_SIZE(msg_data) AS hash_ct
   FROM {{ source('keystone_offchain', 'network_feed') }}
-  WHERE msg_timestamp >= SYSDATE() - INTERVAL '1 WEEK'
-    AND msg_type IN ('new_hash_66', 'new_hash_68')
+WHERE msg_timestamp BETWEEN '2024-02-01' AND '2024-02-29'
+    AND msg_type IN ('new_hash', 'new_hash_66', 'new_hash_68')
 )
 , sessions_enriched AS (
   SELECT
@@ -132,7 +132,7 @@ WITH country AS (
     , GEOIP2_CITY(peer_ip)                                                              AS peer_city
     , GEOIP2_SUBDIVISION(peer_ip)                                                       AS peer_subdivision
   FROM {{ source('keystone_offchain', 'network_feed') }}
-    WHERE msg_timestamp >= SYSDATE() - INTERVAL '1 WEEK'
+  WHERE msg_timestamp BETWEEN '2024-02-01' AND '2024-02-29'
         AND msg_type = 'node_tracker'
 )
 SELECT 

@@ -7,7 +7,7 @@
 
 WITH time_range AS (
     SELECT
-          '2024-02-12 00:00:00' AS update_start_time
+          '2024-02-01 00:00:00' AS update_start_time
         , '2024-02-29 00:00:00' AS update_end_time
 )
 , peer_sessions AS (

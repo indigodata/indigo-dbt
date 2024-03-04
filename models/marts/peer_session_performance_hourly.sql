@@ -1,14 +1,14 @@
 {{
     config(
-        materialized='table'
+        materialized='incremental'
       , cluster_by=['peer_id']
     )
 }}
 
 WITH time_range AS (
     SELECT
-          '2024-02-14 00:00:00' AS update_start_time
-        , '2024-02-17 00:00:00' AS update_end_time
+          '2024-02-12 00:00:00' AS update_start_time
+        , '2024-02-29 00:00:00' AS update_end_time
 )
 , peer_sessions AS (
     SELECT 
@@ -51,7 +51,7 @@ WITH time_range AS (
         LATERAL FLATTEN(input => msg_data) hashes
     WHERE msg_timestamp >= (SELECT update_start_time FROM time_range)
         AND msg_timestamp < (SELECT update_end_time FROM time_range)
-        AND msg_type IN ('new_hash_66', 'new_hash_68')
+        AND msg_type IN ('new_hash', 'new_hash_66', 'new_hash_68')
 )
 , confirmed as (
     SELECT

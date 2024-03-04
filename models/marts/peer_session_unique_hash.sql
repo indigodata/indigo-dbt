@@ -14,7 +14,7 @@ metadata as (
         floor(date_part(epoch_second, end_time) / 60) as bin_num_end
     from KEYSTONE_OFFCHAIN.NETWORK_FEED
     WHERE msg_timestamp BETWEEN '2024-01-22' AND '2024-01-29'
-        AND msg_type IN ('new_hash_66', 'new_hash_68')
+        AND msg_type IN ('new_hash', 'new_hash_66', 'new_hash_68')
 )
 , bins_base as (
     select
@@ -36,7 +36,7 @@ metadata as (
     from KEYSTONE_OFFCHAIN.NETWORK_FEED,
         LATERAL FLATTEN(input => msg_data) hashes
     WHERE msg_timestamp BETWEEN '2024-01-22' AND '2024-01-29'
-        AND msg_type IN ('new_hash_66', 'new_hash_68')
+        AND msg_type IN ('new_hash', 'new_hash_66', 'new_hash_68')
 )
 , confirmed as (
     SELECT

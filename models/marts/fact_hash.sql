@@ -16,7 +16,7 @@ WITH peer_messages AS (
       , ARRAY_SIZE(msg_data)    AS msg_hash_count
     FROM {{ source('keystone_offchain', 'network_feed') }}
     WHERE msg_timestamp > sysdate() - interval '1 week'
-        AND msg_type IN ('new_hash_66', 'new_hash_68')
+        AND msg_type IN ('new_hash', 'new_hash_66', 'new_hash_68')
 )
 , peer_hash_msg AS (
     SELECT

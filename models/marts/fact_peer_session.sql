@@ -1,10 +1,15 @@
 {{
     config(
-        materialized='table'
+        materialized='incremental'
       , cluster_by=['peer_id']
+      , unique_key=['peer_id', 'start_time']
+      , pre_hook="{% if is_incremental() %}
+             SET START_TIMESTAMP = (SELECT GREATEST(MAX(start_time), MAX(end_time)) FROM {{ this }});
+             {% else %}
+             SET START_TIMESTAMP = '2024-02-01 00:00:00'::timestamp;
+             {% endif %}"
     )
 }}
-
 
 WITH country AS (
   SELECT *
@@ -19,7 +24,7 @@ WITH country AS (
     , NULL            AS msg_timestamp_remove
     , NULL            AS session_duration
   FROM {{ source('keystone_offchain', 'network_feed') }}
-  WHERE msg_timestamp BETWEEN '2024-02-01' AND '2024-02-29'
+  WHERE msg_timestamp > $START_TIMESTAMP
     AND msg_type = 'peer_set_add'
 
   UNION ALL
@@ -32,7 +37,7 @@ WITH country AS (
     , msg_timestamp   AS msg_timestamp_remove
     , msg_data[2]     AS session_duration 
   FROM {{ source('keystone_offchain', 'network_feed') }}
-  WHERE msg_timestamp BETWEEN '2024-02-01' AND '2024-02-29'
+  WHERE msg_timestamp > $START_TIMESTAMP
     AND msg_type = 'peer_set_remove'
 
   UNION ALL
@@ -45,8 +50,22 @@ WITH country AS (
     , msg_timestamp   AS msg_timestamp_remove
     , NULL            AS session_duration
   FROM {{ source('keystone_offchain', 'network_feed') }}
-  WHERE msg_timestamp BETWEEN '2024-02-01' AND '2024-02-29'
+  WHERE msg_timestamp > $START_TIMESTAMP
     AND msg_type = 'indigo_node_start'    
+  {% if is_incremental() %}
+      UNION ALL
+      
+      SELECT
+          start_time as msg_timestamp
+        , node_id
+        , 'peer_set_add' msg_type
+        , peer_id
+        , NULL            AS msg_timestamp_remove
+        , NULL            AS session_duration
+      FROM {{ this }}
+        WHERE end_time IS NULL
+          -- TODO: lookback range filter
+    {% endif %}
 )
 , sessions AS (
   SELECT
@@ -69,50 +88,25 @@ WITH country AS (
       END                                                   AS session_duration
   FROM peer_set_unioned
 )
-, new_hash_msgs AS (
-  SELECT
-      msg_timestamp
-    , node_id
-    , peer_id
-    , ARRAY_SIZE(msg_data) AS hash_ct
-  FROM {{ source('keystone_offchain', 'network_feed') }}
-WHERE msg_timestamp BETWEEN '2024-02-01' AND '2024-02-29'
-    AND msg_type IN ('new_hash', 'new_hash_66', 'new_hash_68')
-)
 , sessions_enriched AS (
   SELECT
         msg_timestamp                                   AS start_time
-      , COALESCE(
-          sessions.end_timestamp,
-          (SELECT MAX(msg_timestamp) FROM SESSIONS)
-        )                                               AS end_time
+      , sessions.end_timestamp                          AS end_time
       , session_duration::NUMBER                        AS session_duration                            
-      , DATEDIFF(NANOSECOND, start_time, end_time)      AS session_duration_calculated
+      , DATEDIFF(
+          NANOSECOND,
+          start_time,
+          COALESCE(
+            end_time,
+            (SELECT MAX(msg_timestamp) FROM sessions)
+          )
+        )                                               AS session_duration_calculated
       , session_duration_calculated / 1e9 / 3600.0      AS session_duration_hour
       , sessions.end_timestamp IS NULL                  AS end_time_imputed
       , node_id
       , peer_id
   FROM sessions
   WHERE msg_type = 'peer_set_add'
-)
-, sessions_msg_ct AS (
-  SELECT
-      s.start_time
-    , s.end_time
-    , s.session_duration
-    , s.session_duration_calculated
-    , s.session_duration_hour
-    , s.end_time_imputed
-    , s.node_id
-    , s.peer_id
-    , COUNT(nhm.node_id)              AS msg_ct
-    , SUM(nhm.hash_ct)                AS msg_hash_ct
-  FROM sessions_enriched s
-    LEFT JOIN new_hash_msgs nhm
-      ON s.node_id = nhm.node_id
-      AND s.peer_id = nhm.peer_id
-      AND nhm.msg_timestamp BETWEEN s.start_time AND s.end_time
-  GROUP BY 1,2,3,4,5,6,7,8
 )
 , node_tracker_feed AS (
   SELECT
@@ -132,7 +126,7 @@ WHERE msg_timestamp BETWEEN '2024-02-01' AND '2024-02-29'
     , GEOIP2_CITY(peer_ip)                                                              AS peer_city
     , GEOIP2_SUBDIVISION(peer_ip)                                                       AS peer_subdivision
   FROM {{ source('keystone_offchain', 'network_feed') }}
-  WHERE msg_timestamp BETWEEN '2024-02-01' AND '2024-02-29'
+  WHERE msg_timestamp > $START_TIMESTAMP
         AND msg_type = 'node_tracker'
 )
 SELECT 
@@ -144,10 +138,6 @@ SELECT
   , s.end_time_imputed
   , s.node_id
   , s.peer_id
-  , s.msg_ct
-  , DIV0(s.msg_ct, (session_duration_calculated / 1e9 / 60))        AS msg_per_minute
-  , s.msg_hash_ct
-  , DIV0(s.msg_hash_ct, (session_duration_calculated / 1e9 / 60))   AS msg_hash_per_minute
   , nt.peer_public_key
   , nt.peer_rlp_protocol_version
   , nt.peer_client_type
@@ -177,7 +167,8 @@ SELECT
   , ethernodes.client_version                                   AS ethernodes_client_version
   , ethernodes.os                                               AS ethernodes_os
   , ethernodes.in_sync                                          AS ethernodes_in_sync
-FROM sessions_msg_ct s
+  , '{{run_started_at}}'::timestamp_ntz                         AS updated_at
+FROM sessions_enriched s
   LEFT JOIN node_tracker_feed nt
     ON s.node_id = nt.node_id
       AND s.peer_id = nt.peer_id

@@ -56,9 +56,9 @@ WITH country AS (
       UNION ALL
       
       SELECT
-          start_time as msg_timestamp
+          start_time      AS msg_timestamp
         , node_id
-        , 'peer_set_add' msg_type
+        , 'peer_set_add'  AS msg_type
         , peer_id
         , NULL            AS msg_timestamp_remove
         , NULL            AS session_duration

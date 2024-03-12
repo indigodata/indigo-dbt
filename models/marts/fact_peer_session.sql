@@ -125,9 +125,11 @@ WITH country AS (
     , GEOIP2_COUNTRY(peer_ip)                                                           AS peer_country
     , GEOIP2_CITY(peer_ip)                                                              AS peer_city
     , GEOIP2_SUBDIVISION(peer_ip)                                                       AS peer_subdivision
+    , ROW_NUMBER() OVER(PARTITION BY node_id, peer_id, DATE_TRUNC(MINUTE, msg_timestamp) ORDER BY msg_timestamp) AS row_num
   FROM {{ source('keystone_offchain', 'network_feed') }}
   WHERE msg_timestamp > $START_TIMESTAMP
         AND msg_type = 'node_tracker'
+  QUALIFY row_num = 1
 )
 SELECT 
     s.start_time
@@ -172,7 +174,7 @@ FROM sessions_enriched s
   LEFT JOIN node_tracker_feed nt
     ON s.node_id = nt.node_id
       AND s.peer_id = nt.peer_id
-      AND DATEDIFF(MINUTES, s.start_time, nt.msg_timestamp) BETWEEN 0 AND 1
+      AND date_trunc(MINUTES, s.start_time) = date_trunc(MINUTES, nt.msg_timestamp)
   LEFT JOIN country
     ON nt.peer_country = country.country_code
   LEFT JOIN {{ ref('dim_peers') }} etherscan

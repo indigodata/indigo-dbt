@@ -39,9 +39,7 @@ WITH time_range AS (
     FROM peer_sessions ps
         CROSS JOIN row_generator rg
     WHERE session_hour BETWEEN start_hour AND end_hour 
-        
-        AND end_time >= (SELECT update_start_time FROM time_range)
-        AND start_time < (SELECT update_end_time FROM time_range)
+        and session_hour BETWEEN $UPDATE_START_TIME AND $UPDATE_END_TIME
 )
 , peer_messages AS (
     SELECT
@@ -49,8 +47,7 @@ WITH time_range AS (
         , CAST(SUBSTRING(hashes.value, 3) AS BINARY(32)) AS tx_hash
     from KEYSTONE_OFFCHAIN.NETWORK_FEED,
         LATERAL FLATTEN(input => msg_data) hashes
-    WHERE msg_timestamp >= (SELECT update_start_time FROM time_range)
-        AND msg_timestamp < (SELECT update_end_time FROM time_range)
+    WHERE msg_timestamp BETWEEN $UPDATE_START_TIME AND $UPDATE_END_TIME
         AND msg_type IN ('new_hash', 'new_hash_66', 'new_hash_68')
 )
 , confirmed as (
@@ -61,7 +58,7 @@ WITH time_range AS (
         , ft.tx_hash
         , ft.tx_hash IS NOT NULL AS is_sent_pre_confirmation
     FROM peer_messages msg
-        LEFT JOIN PRODUCTION.fact_transaction__tx_hash ft
+        LEFT JOIN {{ ref('fact_transaction__tx_hash') }} ft
             ON msg.tx_hash=ft.tx_hash
             AND msg.msg_timestamp < ft.blk_timestamp
 )
@@ -79,6 +76,7 @@ SELECT
     , DIV0(total_hash_count, session_hour_minutes)              AS hash_per_minute
     , COUNT(DISTINCT conf.tx_hash)                              AS confirmed_distinct_tx_count
     , DIV0(confirmed_distinct_tx_count, session_hour_minutes)   AS confirmed_distinct_tx_per_minute
+    , '{{run_started_at}}'::timestamp_ntz                       AS updated_at
 FROM peer_sessions_hourly s
 LEFT JOIN confirmed conf
     ON conf.msg_timestamp BETWEEN s.session_hour_start AND s.session_hour_end

@@ -2,26 +2,34 @@
     config(
         materialized='incremental'
       , cluster_by=['peer_id']
+      , pre_hook="{% if is_incremental() %}
+            SET UPDATE_START_TIME = (SELECT DATEADD(HOUR,1, MAX(session_hour)) FROM {{ this }});
+            {% else %}
+            SET UPDATE_START_TIME = '2024-02-01 00:00:00'::timestamp;
+            {% endif %}
+            SET UPDATE_END_TIME = (SELECT DATE_TRUNC(HOUR, MAX(start_time)) FROM production.fact_peer_session);
+            "
     )
 }}
 
-WITH time_range AS (
-    SELECT
-          '2024-02-01 00:00:00' AS update_start_time
-        , '2024-02-29 00:00:00' AS update_end_time
-)
-, peer_sessions AS (
+WITH peer_sessions AS (
     SELECT 
-          *
-        , DATE_TRUNC('hour', start_time)    AS start_hour
-        , DATE_TRUNC('hour', end_time)      AS end_hour
+          peer_id
+        , node_id
+        , start_time
+        , LEAST($UPDATE_END_TIME, DATEADD(HOUR, 12, start_time))        AS imputed_end_time
+        , COALESCE(end_time, imputed_end_time)                          AS end_time
+        , DATE_TRUNC('hour', start_time)                                AS start_hour
+        , DATE_TRUNC('hour', COALESCE(end_time, imputed_end_time))      AS end_hour
     FROM {{ ref('fact_peer_session') }}
-    WHERE end_time >= (SELECT update_start_time FROM time_range)
-        AND start_time < (SELECT update_end_time FROM time_range)
+    WHERE start_time < $UPDATE_END_TIME
+        AND start_time >= DATEADD(HOUR, -12, $UPDATE_START_TIME)
+        AND (end_time >= $UPDATE_START_TIME
+            OR end_time IS NULL)
 )
 , row_generator AS (
     SELECT
-          ROW_NUMBER() OVER (ORDER BY SEQ4()) - 1                           AS idx
+        ROW_NUMBER() OVER (ORDER BY SEQ4()) - 1 AS idx
     FROM TABLE (GENERATOR(rowcount => 1000))
 )
 , peer_sessions_hourly AS (
@@ -39,7 +47,7 @@ WITH time_range AS (
     FROM peer_sessions ps
         CROSS JOIN row_generator rg
     WHERE session_hour BETWEEN start_hour AND end_hour 
-        and session_hour BETWEEN $UPDATE_START_TIME AND $UPDATE_END_TIME
+        AND session_hour BETWEEN $UPDATE_START_TIME AND $UPDATE_END_TIME
 )
 , peer_messages AS (
     SELECT

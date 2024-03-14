@@ -8,3 +8,9 @@ selectors:
         - method: fqn
           value: "fact_transaction__tx_hash"
        
+  - name: daily
+    description: "Daily job model selection"
+    definition:
+      union:
+        - method: fqn
+          value: "boot_node"

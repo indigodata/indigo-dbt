@@ -1,23 +1,23 @@
 {{
     config(
         materialized='incremental'
-      , cluster_by=['peer_id']
       , post_hook=['{{ export_boot_node_to_s3() }}']
     )
 }}
 
 WITH latest_session AS (
     SELECT
-        peer_id,
-        peer_region,
-        ROW_NUMBER() OVER(PARTITION BY peer_id ORDER BY start_time DESC) AS row_num
+          peer_id
+        , peer_region
+        , peer_public_key || '@' || peer_ip || ':' || peer_port AS enode
+        , ROW_NUMBER() OVER(PARTITION BY peer_id ORDER BY start_time DESC) AS row_num
     FROM {{ ref('fact_peer_session') }}
     QUALIFY row_num = 1
 )
 , hash_ct AS (
     SELECT
           latest_session.peer_region
-        , hourly.peer_id
+        , latest_session.enode
         , SUM(hourly.total_hash_count) AS hash_ct
     FROM {{ ref('peer_session_performance_hourly') }} hourly
         LEFT JOIN latest_session
@@ -28,7 +28,7 @@ WITH latest_session AS (
 )
 SELECT
       peer_region
-    , peer_id
+    , enode
     , hash_ct
     , '{{run_started_at}}'::timestamp_ntz AS updated_at
 FROM hash_ct

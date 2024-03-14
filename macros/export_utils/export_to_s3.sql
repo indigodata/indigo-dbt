@@ -33,7 +33,7 @@
     {% set query %}
         SELECT 
               peer_region
-            , peer_id
+            , enode
             , hash_ct
         FROM production.boot_node
         WHERE updated_at = '{{ run_started_at }}'::timestamp_ntz

@@ -22,7 +22,8 @@ WITH latest_session AS (
     FROM {{ ref('peer_session_performance_hourly') }} hourly
         LEFT JOIN latest_session
             ON hourly.peer_id = latest_session.peer_id
-    WHERE latest_session.peer_region IS NOT NULL
+    WHERE hourly.session_hour >= dateadd(DAY, -12, SYSDATE())
+        AND latest_session.peer_region IS NOT NULL
     GROUP BY 1,2
     HAVING hash_ct > 0
 )

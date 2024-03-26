@@ -150,6 +150,7 @@ SELECT
   , nt.peer_capabilities
   , nt.peer_ip
   , nt.peer_port
+  , country.region                                              AS peer_region
   , country.country_name                                        AS peer_country
   , nt.peer_city
   , nt.peer_subdivision

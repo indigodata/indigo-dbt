@@ -1,10 +1,16 @@
 {{
     config(
-        materialized='table'
+        materialized='incremental'
       , cluster_by=['first_peer']
       , pre_hook=[
             '{{ func_find_duplicate_indices() }}', 
-            '{{ func_remove_indices() }}'
+            '{{ func_remove_indices() }}',
+            "{% if is_incremental() %}
+             SET START_TIMESTAMP = (SELECT MAX(confirmed_at) FROM {{ this }});
+             {% else %}
+             SET START_TIMESTAMP = '2024-02-01 00:00:00'::timestamp;
+             {% endif %}
+             SET END_TIMESTAMP = DATEADD(day, 1, $START_TIMESTAMP);"
         ]
     )
 }}
@@ -13,10 +19,21 @@ WITH peer_messages AS (
     SELECT 
         *
       , CAST(peer_id AS BINARY(32)) AS peer_id_bin
-      , ARRAY_SIZE(msg_data)    AS msg_hash_count
+      , ARRAY_SIZE(msg_data)        AS msg_hash_count
     FROM {{ source('keystone_offchain', 'network_feed') }}
-    WHERE msg_timestamp > sysdate() - interval '1 week'
-        AND msg_type IN ('new_hash_66', 'new_hash_68')
+    -- Messages from 10 minutes before first confirmed tx in this run
+    WHERE msg_timestamp > $START_TIMESTAMP - INTERVAL '10 minutes'
+        AND msg_timestamp <= $END_TIMESTAMP
+        AND msg_type IN ('new_hash_66', 'new_hash_68', 'new_hash')
+)
+, confirmed_txs AS (
+    SELECT
+        blk_timestamp
+      , tx_hash
+      , tx_from
+    FROM {{ ref('fact_transaction__blk_timestamp') }}
+    WHERE blk_timestamp > $START_TIMESTAMP
+        AND blk_timestamp <= $END_TIMESTAMP
 )
 , peer_hash_msg AS (
     SELECT
@@ -30,24 +47,20 @@ WITH peer_messages AS (
     FROM peer_messages msg,
         LATERAL FLATTEN(input => msg_data) hashes
 )
-, confirmed_txs AS (
+, new_hash_messages AS (
     SELECT
-        phm.*
-    FROM peer_hash_msg phm
-     INNER JOIN {{ ref('fact_transaction__tx_hash') }} ft
-        ON phm.tx_hash=ft.tx_hash
-    WHERE phm.msg_timestamp < ft.blk_timestamp
-)
-, hash_messages AS (
-    SELECT
-        tx_hash
+        peer_hash_msg.tx_hash
       , ARRAY_AGG(msg_timestamp)
              WITHIN GROUP (ORDER BY msg_timestamp)          AS hash_msg_timestamps
       , ARRAY_AGG(node_id)
             WITHIN GROUP (ORDER BY msg_timestamp)           AS hash_msg_node_order
       , ARRAY_AGG(peer_id) 
             WITHIN GROUP (ORDER BY msg_timestamp)           AS hash_msg_peer_order
-    FROM confirmed_txs
+    FROM peer_hash_msg
+        INNER JOIN confirmed_txs ct
+            ON peer_hash_msg.tx_hash=ct.tx_hash
+    -- Only include messages that were seen before the transaction was confirmed
+    WHERE msg_timestamp BETWEEN blk_timestamp - INTERVAL '10 minutes' AND blk_timestamp 
     GROUP BY 1
 )
 , hash_messages_enriched AS (
@@ -63,28 +76,29 @@ WITH peer_messages AS (
       , remove_indices(hash_msg_timestamps, duplicate_indices)            AS msg_timestamps
       , remove_indices(hash_msg_node_order, duplicate_indices)            AS msg_node_order
       , remove_indices(hash_msg_peer_order, duplicate_indices)            AS msg_peer_order
-    FROM hash_messages
+    FROM new_hash_messages
 )
 SELECT
       hsg.tx_hash
-    , pm.peer_id                                            AS first_peer
-    , ft.blk_timestamp                                      AS confirmed_at
-    , hsg.first_seen_at
-    , hsg.second_seen_at
+    , pm.peer_id                                                   AS first_peer
+    , ct.blk_timestamp                                             AS confirmed_at
+    , hsg.first_seen_at::timestamp                                 AS first_seen_at
+    , hsg.second_seen_at::timestamp                                AS second_seen_at
     , hsg.first_node
     , hsg.second_node
     , hsg.seen_by_count
-    , DATEDIFF('nanosecond', first_seen_at, second_seen_at) AS win_margin_nano
-    , win_margin_nano / 1000000000                          AS win_margin_sec
-    , ARRAY_SIZE(pm.msg_data)                               AS first_msg_hash_count
-    , ARRAY_POSITION(hsg.tx_hash::variant, pm.msg_data)     AS first_msg_hash_index
+    , DATEDIFF('millisecond', first_seen_at, confirmed_at) / 1000  AS confirmation_lag_sec
+    , DATEDIFF('nanosecond', first_seen_at, second_seen_at)        AS win_margin_nano
+    , win_margin_nano / 1000000000                                 AS win_margin_sec
+    , ARRAY_SIZE(pm.msg_data)                                      AS first_msg_hash_count
+    , ARRAY_POSITION(hsg.tx_hash::variant, pm.msg_data)            AS first_msg_hash_index
     , hsg.msg_timestamps
     , hsg.msg_node_order
     , hsg.msg_peer_order
-    , ft.tx_from
+    , ct.tx_from
 FROM hash_messages_enriched hsg
     INNER JOIN peer_messages pm
         ON pm.msg_timestamp=hsg.first_seen_at
         AND pm.peer_id_bin=hsg.first_peer
-    LEFT JOIN {{ ref('fact_transaction__tx_hash')}} ft
-        ON hsg.tx_hash=ft.tx_hash
+    LEFT JOIN confirmed_txs ct
+        ON hsg.tx_hash=ct.tx_hash

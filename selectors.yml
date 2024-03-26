@@ -1,4 +1,15 @@
 selectors:
+  - name: peer_sessions
+    description: "Peer session model selection"
+    definition:
+      union:
+        - method: fqn
+          value: "dim_peers"
+        - method: fqn
+          value: "fact_peer_session"
+        - method: fqn
+          value: "peer_session_performance_hourly"
+
   - name: hourly
     description: "Hourly job model selection"
     definition:
@@ -7,6 +18,8 @@ selectors:
           value: "incremental_coordinator"
         - method: fqn
           value: "fact_transaction__tx_hash"
+        - method: selector
+          value: "peer_sessions"
        
   - name: daily
     description: "Daily job model selection"

@@ -3,6 +3,7 @@
         materialized='incremental'
       , cluster_by=['peer_id']
       , unique_key=['peer_id', 'start_time']
+      , snowflake_warehouse='compute_large_wh'
       , pre_hook="{% if is_incremental() %}
              SET START_TIMESTAMP = (SELECT GREATEST(MAX(start_time), MAX(end_time)) FROM {{ this }});
              {% else %}

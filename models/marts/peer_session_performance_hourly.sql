@@ -2,6 +2,7 @@
     config(
         materialized='incremental'
       , cluster_by=['peer_id']
+      , snowflake_warehouse='compute_large_wh'
       , pre_hook="{% if is_incremental() %}
             SET UPDATE_START_TIME = (SELECT DATEADD(HOUR,1, MAX(session_hour)) FROM {{ this }});
             {% else %}

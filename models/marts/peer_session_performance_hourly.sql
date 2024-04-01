@@ -8,7 +8,7 @@
             {% else %}
             SET UPDATE_START_TIME = '2024-02-01 00:00:00'::timestamp;
             {% endif %}
-            SET UPDATE_END_TIME = (SELECT DATE_TRUNC(HOUR, MAX(start_time)) FROM production.fact_peer_session);
+            SET UPDATE_END_TIME = (SELECT DATEADD(hour, -1, DATE_TRUNC(HOUR, MAX(start_time))) FROM production.fact_peer_session);
             "
     )
 }}
@@ -49,6 +49,7 @@ WITH peer_sessions AS (
         CROSS JOIN row_generator rg
     WHERE session_hour BETWEEN start_hour AND end_hour 
         AND session_hour BETWEEN $UPDATE_START_TIME AND $UPDATE_END_TIME
+        AND session_hour_start != session_hour_end
 )
 , peer_messages AS (
     SELECT
@@ -85,6 +86,8 @@ SELECT
     , DIV0(total_hash_count, session_hour_minutes)              AS hash_per_minute
     , COUNT(DISTINCT conf.tx_hash)                              AS confirmed_distinct_tx_count
     , DIV0(confirmed_distinct_tx_count, session_hour_minutes)   AS confirmed_distinct_tx_per_minute
+    , $UPDATE_START_TIME                                        AS update_start_time
+    , $UPDATE_END_TIME                                          AS update_end_time
     , '{{run_started_at}}'::timestamp_ntz                       AS updated_at
 FROM peer_sessions_hourly s
 LEFT JOIN confirmed conf

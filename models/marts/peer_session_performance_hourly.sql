@@ -48,7 +48,8 @@ WITH peer_sessions AS (
     FROM peer_sessions ps
         CROSS JOIN row_generator rg
     WHERE session_hour BETWEEN start_hour AND end_hour 
-        AND session_hour BETWEEN $UPDATE_START_TIME AND $UPDATE_END_TIME
+        AND session_hour >= $UPDATE_START_TIME
+        AND session_hour < $UPDATE_END_TIME
         AND session_hour_start != session_hour_end
 )
 , peer_messages AS (

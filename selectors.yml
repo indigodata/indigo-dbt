@@ -26,4 +26,4 @@ selectors:
     definition:
       union:
         - method: fqn
-          value: "boot_node"
+          value: "undersampled_peers.sql"

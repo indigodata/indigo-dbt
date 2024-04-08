@@ -29,14 +29,14 @@
     {% endif %}
 {%- endmacro %}
 
-{% macro export_boot_node_to_s3() -%}
+{% macro export_undersampled_peers.sql_to_s3() -%}
     {% set query %}
         SELECT 
               peer_region
             , enode
             , hash_ct
-        FROM production.boot_node
+        FROM production.undersampled_peers.sql
         WHERE updated_at = '{{ run_started_at }}'::timestamp_ntz
     {% endset %}
-    {{ export_to_s3('s3_export_stage', 'boot_node/boot_node.csv.gz', query)}}
+    {{ export_to_s3('s3_export_stage', 'undersampled_peers.sql/undersampled_peers.sql.csv.gz', query)}}
 {%- endmacro %}

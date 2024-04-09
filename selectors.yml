@@ -20,3 +20,10 @@ selectors:
           value: "fact_transaction__tx_hash"
         - method: selector
           value: "peer_sessions"
+       
+  - name: undersampled_peers
+    description: "Undersampled peers job model selection"
+    definition:
+      union:
+        - method: fqn
+          value: "undersampled_peers"

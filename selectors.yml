@@ -21,8 +21,8 @@ selectors:
         - method: selector
           value: "peer_sessions"
        
-  - name: daily
-    description: "Daily job model selection"
+  - name: undersampled_peers
+    description: "Undersampled peers job model selection"
     definition:
       union:
         - method: fqn

@@ -26,4 +26,4 @@ selectors:
     definition:
       union:
         - method: fqn
-          value: "undersampled_peers.sql"
+          value: "undersampled_peers"

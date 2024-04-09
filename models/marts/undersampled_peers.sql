@@ -1,7 +1,7 @@
 {{
     config(
         materialized='incremental'
-      , post_hook=['{{ export_boot_node_to_s3() }}']
+      , post_hook=['{{ export_undersampled_peers_to_s3() }}']
     )
 }}
 

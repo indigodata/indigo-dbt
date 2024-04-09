@@ -19,7 +19,7 @@
     {% if execute %}
         {% if should_full_refresh() and 'full_refresh' not in stage.lower() %}
             {{ log('This is a full refresh. Please use the full-refresh stage and copy it manually. Skipping the export.', 'warn') }}
-        {% elif target.schema.lower() == 'production' %}
+        {% elif target.schema.lower() != 'production' %}
             {{ log('Not in the production schema. Skipping the export.', 'info') }}
         {% else %}
             {{ log('Copying data into S3 bucket', 'info') }}

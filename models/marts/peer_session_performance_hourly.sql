@@ -8,7 +8,12 @@
             {% else %}
             SET UPDATE_START_TIME = '2024-02-01 00:00:00'::timestamp;
             {% endif %}
-            SET UPDATE_END_TIME = (SELECT DATEADD(hour, -1, DATE_TRUNC(HOUR, MAX(start_time))) FROM production.fact_peer_session);
+            SET UPDATE_END_TIME = (
+                SELECT LEAST(
+                    (SELECT DATEADD(HOUR, -1, DATE_TRUNC(HOUR, MAX(start_time))) FROM production.fact_peer_session),
+                    (SELECT DATE_TRUNC(HOUR, MAX(blk_timestamp)) FROM production.fact_transaction__tx_hash)
+                )
+            );
             "
     )
 }}

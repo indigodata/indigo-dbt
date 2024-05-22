@@ -56,8 +56,8 @@ WITH wallet_peer AS (
       , hash_win.first_seen_at
       , hash_win.seen_by_count
       , hash_win.confirmation_lag_sec
-      , hash_win.msg_peer_order
-      , hash_win.msg_timestamps
+      -- , hash_win.msg_peer_order
+      -- , hash_win.msg_timestamps
     FROM {{ ref('fact_hash_win__tx_from') }} hash_win
         INNER JOIN session_hours sh
             ON hash_win.tx_from=sh.wallet_address
@@ -69,30 +69,44 @@ WITH wallet_peer AS (
     SELECT
         peer_id
       , wallet_address
+      , session_hour
       , hash_per_minute
       , seen_by_count
       , confirmation_lag_sec
-      , CAST(peer_id AS BINARY(32)) AS peer_id_bin
-      , get_array_position(peer_id_bin, msg_peer_order)                 AS broadcast_position
-      , get_item_at_index(msg_timestamps, broadcast_position)           AS lost_timestamp
-      , DATEDIFF('millisecond', first_seen_at, lost_timestamp) / 1000   AS loss_margin
+      -- , CAST(peer_id AS BINARY(32)) AS peer_id_bin
+      -- , get_array_position(peer_id_bin, msg_peer_order)                 AS broadcast_position
+      -- , get_item_at_index(msg_timestamps, broadcast_position)           AS lost_timestamp
+      -- , DATEDIFF('millisecond', first_seen_at, lost_timestamp) / 1000   AS loss_margin
     FROM updates_to_make
     WHERE peer_id!=first_peer -- LOSSES ONLY
       AND (is_edge_hour = FALSE
             OR first_seen_at BETWEEN session_start_time AND session_end_time)
 )
-, loss_stats AS (
+, loss_stat_hourly AS (
     SELECT
         peer_id
       , wallet_address
+      , session_hour
       , AVG(hash_per_minute)                 AS avg_hash_per_minute
       , COUNT(1)                             AS loss_count
-      , COUNT_IF(broadcast_position IS NULL) AS no_show_count
-      , AVG(broadcast_position)              AS avg_loss_position
-      , AVG(loss_margin)                     AS avg_loss_margin
-      , AVG(seen_by_count)                   AS avg_seen_by_count__loss
-      , AVG(confirmation_lag_sec)            AS avg_confirmation_lag__loss
+      -- , COUNT_IF(broadcast_position IS NULL) AS no_show_count
+      -- , AVG(broadcast_position)              AS avg_loss_position
+      -- , AVG(loss_margin)                     AS avg_loss_margin
+      , AVG(seen_by_count)                   AS avg_seen_by_count
+      , AVG(confirmation_lag_sec)            AS avg_confirmation_lag
     FROM loss_hashes
+    GROUP BY 1,2,3
+)
+, loss_stats AS (
+    SELECT
+        wallet_address
+      , peer_id
+      , COUNT(1)                             AS loss_hour_count
+      , SUM(loss_count)                      AS loss_count
+      , AVG(avg_hash_per_minute)             AS avg_hash_per_minute
+      , AVG(avg_seen_by_count)               AS avg_seen_by_count
+      , AVG(avg_confirmation_lag)            AS avg_confirmation_lag
+    FROM loss_stat_hourly
     GROUP BY 1,2
 )
 , get_tx_stats AS (

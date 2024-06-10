@@ -9,7 +9,7 @@ WITH tx_hour AS (
     SELECT
           DATE_TRUNC(HOUR, BLK_TIMESTAMP) AS blk_hour
         , COUNT(1) AS tx_ct
-    FROM production.fact_transaction__tx_hash
+    FROM {{ ref('fact_transaction__tx_hash') }}
     WHERE blk_timestamp > '2024-01-01'
     GROUP BY 1
 )
@@ -21,7 +21,7 @@ WITH tx_hour AS (
             perf.confirmed_distinct_tx_count / tx.tx_ct,
             1
           ) AS pct_mempool
-    FROM production.peer_session_performance_hourly perf
+    FROM {{ ref('peer_session_performance_hourly') }} perf
         LEFT JOIN tx_hour tx
             ON perf.session_hour = tx.blk_hour
     WHERE is_edge_hour = FALSE
@@ -54,7 +54,7 @@ WITH tx_hour AS (
 )
 , latest_dimentions AS (
     SELECT *
-    FROM production.fact_peer_session
+    FROM {{ ref('fact_peer_session') }}
       WHERE peer_client_type IS NOT NULL
       QUALIFY ROW_NUMBER() OVER(
           PARTITION BY peer_id

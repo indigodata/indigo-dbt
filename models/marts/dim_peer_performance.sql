@@ -16,7 +16,8 @@ WITH tx_hour AS (
 , mempool_performance AS (
     SELECT
           perf.peer_id
-        , perf.SESSION_HOUR
+        , perf.session_hour
+        , perf.confirmed_distinct_tx_per_minute
         , LEAST(
             perf.confirmed_distinct_tx_count / tx.tx_ct,
             1
@@ -29,6 +30,7 @@ WITH tx_hour AS (
 , performance_metrics AS (
     SELECT
         peer_id
+        , AVG(confirmed_distinct_tx_per_minute) AS avg_confirmed_distinct_tx_per_minute
         , COALESCE(
             AVG(
                 IFF(
@@ -55,13 +57,14 @@ WITH tx_hour AS (
 , latest_dimentions AS (
     SELECT *
     FROM {{ ref('fact_peer_session') }}
-      WHERE peer_client_type IS NOT NULL
-      QUALIFY ROW_NUMBER() OVER(
-          PARTITION BY peer_id
-          ORDER BY start_time DESC) = 1
+    WHERE peer_client_type IS NOT NULL
+    QUALIFY ROW_NUMBER() OVER(
+        PARTITION BY peer_id
+        ORDER BY start_time DESC) = 1
 )
 SELECT
       perf.peer_id
+    , ROUND(perf.avg_confirmed_distinct_tx_per_minute) AS avg_confirmed_distinct_tx_per_minute
     , ROUND(perf.avg_propogation_rate_2w * 100, 2)  AS avg_propogation_rate_2w
     , ROUND(perf.max_propogation_rate_2w * 100, 2)  AS max_propogation_rate_2w
     , ROUND(perf.avg_propogation_rate * 100, 2)     AS avg_propogation_rate

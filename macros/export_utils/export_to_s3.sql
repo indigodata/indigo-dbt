@@ -8,6 +8,7 @@
         FILE_FORMAT = (
             TYPE = 'CSV'
             EMPTY_FIELD_AS_NULL = FALSE
+            FIELD_OPTIONALLY_ENCLOSED_BY = '"'
             NULL_IF = ('')
         )
         SINGLE=TRUE
@@ -39,4 +40,32 @@
         WHERE updated_at = '{{ run_started_at }}'::timestamp_ntz
     {% endset %}
     {{ export_to_s3('s3_export_stage', 'undersampled_peers/undersampled_peers.csv.gz', query)}}
+{%- endmacro %}
+
+{% macro export_dim_peer_performance_to_s3() -%}
+    {% set query %}
+        SELECT 
+              peer_id
+            , avg_confirmed_distinct_tx_per_minute
+            , avg_propogation_rate_2w
+            , max_propogation_rate_2w
+            , avg_propogation_rate
+            , max_propogation_rate
+            , peer_public_key
+            , peer_rlp_protocol_version
+            , peer_client_type
+            , peer_client_version
+            , peer_os
+            , peer_run_time_version
+            , peer_capabilities
+            , peer_ip
+            , peer_port
+            , peer_region
+            , peer_country
+            , peer_city
+            , last_seen_at
+        FROM production.dim_peer_performance
+        where last_seen_at >= sysdate() - interval '1 month'
+    {% endset %}
+    {{ export_to_s3('s3_export_stage', 'host_map/dim_peer_performance.csv.gz', query)}}
 {%- endmacro %}

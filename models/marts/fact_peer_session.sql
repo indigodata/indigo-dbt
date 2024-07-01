@@ -128,7 +128,7 @@ WITH country AS (
     , GEOIP2_SUBDIVISION(peer_ip)                                                       AS peer_subdivision
     , ROW_NUMBER() OVER(PARTITION BY node_id, peer_id, DATE_TRUNC(MINUTE, msg_timestamp) ORDER BY msg_timestamp) AS row_num
   FROM {{ source('keystone_offchain', 'network_feed') }}
-  WHERE msg_timestamp > $START_TIMESTAMP
+  WHERE msg_timestamp > $START_TIMESTAMP - INTERVAL '14 hours'
         AND msg_type = 'node_tracker'
   QUALIFY row_num = 1
 )

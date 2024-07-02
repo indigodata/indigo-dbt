@@ -87,6 +87,22 @@ WITH tx_hour AS (
         PARTITION BY peer_id 
         ORDER BY start_time DESC) = 1
 )
+, sync_lag AS (
+    SELECT 
+          peer_id
+        , AVG(sync_block_gap)               AS avg_sync_lag
+        , COALESCE(
+            AVG(
+                IFF(
+                    start_time::DATE >= (SYSDATE() - INTERVAL '2 weeks')::DATE,
+                    sync_block_gap,
+                    NULL)
+                )
+            , 0
+          )                                 AS avg_sync_lag_2w
+    FROM {{ ref('fact_peer_session') }}
+    GROUP BY 1
+)
 SELECT
       perf.peer_id
     , ROUND(perf.avg_confirmed_distinct_tx_per_minute) AS avg_confirmed_distinct_tx_per_minute
@@ -95,6 +111,9 @@ SELECT
     , ROUND(perf.avg_propogation_rate * 100, 2)     AS avg_propogation_rate
     , ROUND(perf.max_propogation_rate * 100, 2)     AS max_propogation_rate
     , up.upgraded_at
+    , avg_sync_lag
+    , avg_sync_lag_2w
+    , COALESCE(dim.in_sync , FALSE)                 AS in_sync
     , dim.peer_public_key
     , dim.peer_rlp_protocol_version
     , dim.peer_client_type
@@ -114,3 +133,5 @@ FROM performance_metrics perf
         ON perf.peer_id = dim.peer_id
     LEFT JOIN last_upgrade up
         ON perf.peer_id = up.peer_id
+    LEFT JOIN sync_lag sl
+        ON perf.peer_id = sl.peer_id

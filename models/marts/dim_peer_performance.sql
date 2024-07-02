@@ -54,12 +54,37 @@ WITH tx_hour AS (
     FROM mempool_performance
     GROUP BY 1
 )
-, latest_dimentions AS (
+, latest_dimensions AS (
     SELECT *
     FROM {{ ref('fact_peer_session') }}
     WHERE peer_client_type IS NOT NULL
     QUALIFY ROW_NUMBER() OVER(
         PARTITION BY peer_id
+        ORDER BY start_time DESC) = 1
+)
+, version_changes AS (
+    SELECT
+          peer_id
+        , start_time
+        , peer_client_version
+        , LAG(peer_client_version) OVER (
+            PARTITION BY peer_id 
+            ORDER BY start_time
+          )                                 AS prev_version,
+    FROM {{ ref('fact_peer_session') }}
+    WHERE peer_client_type IS NOT NULL
+    QUALIFY peer_client_version != prev_version 
+        OR prev_version IS NULL
+)
+, last_upgrade AS (
+    SELECT
+          peer_id
+        , start_time AS upgraded_at
+        , peer_client_version
+    FROM
+        version_changes
+    QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY peer_id 
         ORDER BY start_time DESC) = 1
 )
 SELECT
@@ -69,6 +94,7 @@ SELECT
     , ROUND(perf.max_propogation_rate_2w * 100, 2)  AS max_propogation_rate_2w
     , ROUND(perf.avg_propogation_rate * 100, 2)     AS avg_propogation_rate
     , ROUND(perf.max_propogation_rate * 100, 2)     AS max_propogation_rate
+    , up.upgraded_at
     , dim.peer_public_key
     , dim.peer_rlp_protocol_version
     , dim.peer_client_type
@@ -84,5 +110,7 @@ SELECT
     , dim.peer_subdivision
     , dim.start_time                                AS last_seen_at
 FROM performance_metrics perf
-    LEFT JOIN latest_dimentions dim
+    LEFT JOIN latest_dimensions dim
         ON perf.peer_id = dim.peer_id
+    LEFT JOIN last_upgrade up
+        ON perf.peer_id = up.peer_id

@@ -113,7 +113,7 @@ SELECT
     , up.upgraded_at
     , avg_sync_lag
     , avg_sync_lag_2w
-    , COALESCE(dim.in_sync , FALSE)                 AS in_sync
+    , COALESCE(dim.in_sync, FALSE)                  AS in_sync
     , dim.peer_public_key
     , dim.peer_rlp_protocol_version
     , dim.peer_client_type
@@ -127,7 +127,7 @@ SELECT
     , dim.peer_country
     , dim.peer_city
     , dim.peer_subdivision
-    , dim.start_time                                AS last_seen_at
+    , COALESCE(dim.end_time, dim.start_time)        AS last_seen_at
 FROM performance_metrics perf
     LEFT JOIN latest_dimensions dim
         ON perf.peer_id = dim.peer_id

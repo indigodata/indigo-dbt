@@ -109,6 +109,37 @@ WITH country AS (
   FROM sessions
   WHERE msg_type = 'peer_set_add'
 )
+, handshake_feed AS (
+    SELECT
+          node_id
+        , msg_timestamp
+        , peer_id
+        , msg_data[0]::INT      AS network
+        , msg_data[2]::STRING   AS genesis_block
+        , msg_data[3]::STRING   AS head_block_hash
+        , msg_data[4]::STRING   AS local_block_hash
+    FROM {{ source('keystone_offchain', 'network_feed') }}
+    WHERE msg_timestamp > $START_TIMESTAMP - INTERVAL '14 hours'
+        AND msg_type = 'handshake_eth'
+        AND network = 1
+        AND genesis_block = '0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3'
+)
+, sync_gap AS (
+    SELECT 
+          feed.node_id
+        , feed.msg_timestamp
+        , feed.peer_id
+        , feed.head_block_hash = feed.local_block_hash
+            AND feed.head_block_hash IS NOT NULL        AS in_sync
+        , b1.blk_number                                 AS head_block
+        , b2.blk_number                                 AS local_block
+        , GREATEST(head_block - local_block, 0)         AS sync_block_gap
+    FROM handshake_feed feed
+        LEFT JOIN {{ source('keystone_ethereum', 'block_header') }} b1
+            ON feed.head_block_hash = LOWER('0x' || b1.blk_hash::STRING)
+        LEFT JOIN {{ source('keystone_ethereum', 'block_header') }} b2
+            ON feed.local_block_hash = LOWER('0x' || b2.blk_hash::STRING)
+)
 , node_tracker_feed AS (
   SELECT
       node_id
@@ -150,6 +181,10 @@ SELECT
   , nt.peer_capabilities
   , nt.peer_ip
   , nt.peer_port
+  , sg.in_sync
+  , sg.head_block
+  , sg.local_block
+  , sg.sync_block_gap
   , country.region                                              AS peer_region
   , country.country_name                                        AS peer_country
   , nt.peer_city
@@ -177,6 +212,10 @@ FROM sessions_enriched s
     ON s.node_id = nt.node_id
       AND s.peer_id = nt.peer_id
       AND date_trunc(MINUTES, s.start_time) = date_trunc(MINUTES, nt.msg_timestamp)
+  LEFT JOIN sync_gap sg
+    ON s.node_id = sg.node_id
+      AND s.peer_id = sg.peer_id
+      AND date_trunc(MINUTES, s.start_time) = date_trunc(MINUTES, sg.msg_timestamp)
   LEFT JOIN country
     ON nt.peer_country = country.country_code
   LEFT JOIN {{ ref('dim_peers') }} etherscan

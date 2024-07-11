@@ -9,6 +9,8 @@ selectors:
           value: "fact_peer_session"
         - method: fqn
           value: "peer_session_performance_hourly"
+        - method: fqn
+          value: "dim_peer_performance"
 
   - name: hourly
     description: "Hourly job model selection"
@@ -18,6 +20,8 @@ selectors:
           value: "incremental_coordinator"
         - method: fqn
           value: "fact_transaction__tx_hash"
+        - method: fqn
+          value: "fact_mempool_transaction"
         - method: selector
           value: "peer_sessions"
        

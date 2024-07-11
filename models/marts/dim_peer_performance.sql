@@ -7,7 +7,7 @@
 
 WITH public_mempool AS (
     SELECT
-          DATE_TRUNC(HOUR, mem.first_seen)  AS blk_hour
+          DATE_TRUNC(HOUR, mem.first_seen_at)  AS blk_hour
         , COUNT(1)                          AS tx_ct
     FROM {{ ref('fact_mempool_transaction') }} mem
         INNER JOIN {{ ref('fact_transaction__tx_hash') }} tx

@@ -27,4 +27,5 @@ SELECT
 FROM new_hashes nh
     LEFT JOIN {{ this }} this
         ON nh.tx_hash = this.tx_hash
-WHERE nh.first_seen_at < this.first_seen_at
+WHERE this.first_seen_at IS NULL
+    OR nh.first_seen_at < this.first_seen_at

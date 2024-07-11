@@ -5,12 +5,13 @@
     )
 }}
 
-WITH tx_hour AS (
+WITH public_mempool AS (
     SELECT
-          DATE_TRUNC(HOUR, BLK_TIMESTAMP) AS blk_hour
-        , COUNT(1) AS tx_ct
-    FROM {{ ref('fact_transaction__tx_hash') }}
-    WHERE blk_timestamp > '2024-01-01'
+          DATE_TRUNC(HOUR, mem.first_seen)  AS blk_hour
+        , COUNT(1)                          AS tx_ct
+    FROM {{ ref('fact_mempool_transaction') }} mem
+        INNER JOIN {{ ref('fact_transaction__tx_hash') }} tx
+            ON mem.tx_hash = '0x' || LOWER(tx.tx_hash::STRING)
     GROUP BY 1
 )
 , mempool_performance AS (
@@ -19,12 +20,12 @@ WITH tx_hour AS (
         , perf.session_hour
         , perf.confirmed_distinct_tx_per_minute
         , LEAST(
-            perf.confirmed_distinct_tx_count / tx.tx_ct,
+            perf.confirmed_distinct_tx_count / mem.tx_ct,
             1
           ) AS pct_mempool
     FROM {{ ref('peer_session_performance_hourly') }} perf
-        LEFT JOIN tx_hour tx
-            ON perf.session_hour = tx.blk_hour
+        LEFT JOIN public_mempool mem
+            ON perf.session_hour = mem.blk_hour
     WHERE is_edge_hour = FALSE
 )
 , performance_metrics AS (

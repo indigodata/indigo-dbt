@@ -134,11 +134,18 @@ WITH country AS (
         , b1.blk_number                                 AS head_block
         , b2.blk_number                                 AS local_block
         , GREATEST(head_block - local_block, 0)         AS sync_block_gap
+        , ROW_NUMBER() OVER(
+            PARTITION BY
+                node_id,
+                peer_id,
+                DATE_TRUNC(MINUTE, msg_timestamp)
+            ORDER BY msg_timestamp)                     AS row_num
     FROM handshake_feed feed
         LEFT JOIN {{ source('keystone_ethereum', 'block_header') }} b1
             ON feed.head_block_hash = LOWER('0x' || b1.blk_hash::STRING)
         LEFT JOIN {{ source('keystone_ethereum', 'block_header') }} b2
             ON feed.local_block_hash = LOWER('0x' || b2.blk_hash::STRING)
+    QUALIFY row_num = 1
 )
 , node_tracker_feed AS (
   SELECT

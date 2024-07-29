@@ -14,7 +14,7 @@
         SINGLE=TRUE
         OVERWRITE=TRUE
         HEADER=TRUE
-        MAX_FILE_SIZE = 52428800;
+        MAX_FILE_SIZE = 1000000000;
     {% endset %}
 
     {% if execute %}
@@ -51,6 +51,10 @@
             , max_propogation_rate_2w
             , avg_propogation_rate
             , max_propogation_rate
+            , upgraded_at
+            , avg_sync_lag
+            , avg_sync_lag_2w
+            , in_sync
             , peer_public_key
             , peer_rlp_protocol_version
             , peer_client_type

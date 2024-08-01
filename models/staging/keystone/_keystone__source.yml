@@ -16,6 +16,7 @@ sources:
   - name: contract_deployment
   - name: block_header
   - name: uniswap_v3_pair_swap
+  - name: uniswap_v3_create_pool
 
 - name: keystone_offchain
 

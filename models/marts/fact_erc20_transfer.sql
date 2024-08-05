@@ -71,6 +71,11 @@ SELECT
   , erc20.sender
   , erc20.recipient
   , erc20.amount
+  , erc20.amount / POW(10, price.token_decimals) 
+        * (price.start_price_eth + price.end_price_eth) / 2 AS amount_eth
   , erc20.run_timestamp
 FROM erc20_transfer erc20
+     LEFT JOIN {{ ref('fact_hourly_price_change') }} price
+            ON DATE_TRUNC(HOUR, erc20.blk_timestamp) = price.start_hour
+                AND erc20.token_contract = price.token_address
 WHERE {{ new_blocks_only() }}

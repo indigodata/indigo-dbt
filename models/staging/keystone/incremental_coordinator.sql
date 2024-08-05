@@ -11,7 +11,9 @@
 
 {% set blockchains = ['ethereum'] %}
 {% set source_tables = [
-    'eth_transaction'
+      'eth_transaction'
+    , 'erc20_transfer'
+    , 'weth_deposit_withdrawal'
 ] %}
 
 WITH blockchains AS (

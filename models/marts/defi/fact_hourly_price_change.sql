@@ -1,6 +1,6 @@
 {{
     config(
-          materialized='incremental'
+          materialized='table'
         , cluster_by=['token_address']
     )
 }}

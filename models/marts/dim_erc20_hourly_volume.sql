@@ -35,11 +35,14 @@ WITH erc_transfer AS (
 )
 SELECT 
       erc.token_contract
-    , DATE_TRUNC(HOUR, erc.blk_timestamp) AS transfer_hour
-    , peer.peer_country
-    , SUM(erc.in_eth) AS in_eth
-    , SUM(erc.out_eth) AS out_eth
-    , SUM(erc.net_eth) AS net_eth
+    , DATE_TRUNC(HOUR, erc.blk_timestamp)       AS transfer_hour
+    , IFF(peer.peer_country = 'United States',
+        peer.peer_subdivision,
+        peer.peer_country
+      )                                         AS peer_location
+    , SUM(erc.in_eth)                           AS in_eth
+    , SUM(erc.out_eth)                          AS out_eth
+    , SUM(erc.net_eth)                          AS net_eth
 FROM erc_transfer erc
     LEFT JOIN production.fact_hash_win_simple__tx_hash win
         ON erc.tx_hash = '0x' || lower(win.tx_hash::VARCHAR)

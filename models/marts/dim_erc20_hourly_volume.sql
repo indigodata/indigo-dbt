@@ -17,11 +17,17 @@ WITH pair_swaps AS (
           erc.tx_hash
         , erc.token_contract
         , ANY_VALUE(erc.blk_timestamp)                          AS blk_timestamp
-        , SUM(
-            IFF(erc.tx_from = erc.recipient, erc.amount_eth, 0)
+        , COALESCE(
+            SUM(
+                IFF(erc.tx_from = erc.recipient, erc.amount_eth, 0)
+            ),
+            0                                                     
           )                                                     AS in_eth
-        , SUM(
-            IFF(erc.tx_from = erc.sender, erc.amount_eth, 0)
+        , COALESCE(
+            SUM(
+                IFF(erc.tx_from = erc.sender, erc.amount_eth, 0)
+            ),
+            0                                                     
           )                                                     AS out_eth
         , in_eth - out_eth                                      AS net_eth
     FROM {{ ref('fact_erc20_transfer') }} erc
